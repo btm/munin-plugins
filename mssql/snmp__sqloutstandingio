@@ -75,7 +75,7 @@ $response = $session->get_table($mssqlstatus);
 
 if (!defined ($response))
 {
-    die "Croaking: $error";
+    die "Croaking: " . $session->error;
 }
 
 if (defined $ARGV[0] and $ARGV[0] eq "config")
