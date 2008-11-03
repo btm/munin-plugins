@@ -1,0 +1,10 @@
+These SNMP MSSQL 2000 scripts were written by Nathan Haneysmith <nathan@hjksolutions.com>.
+Please see the top of each script for information regarding their licensing.
+
+Note that at this time, it appears munin snmpconf does not support require's inside tables, thus the snmpconf does not work.
+You will need to manually create the links rather than using munin-node-configure --snmp / munin-node-configure-snmp to suggest them.
+
+Also, Microsoft has dropped SNMP support for MS SQL after 2000, so you are currently out of luck there AFAIK.
+
+Bryan McLellan <btm@loftninjas.org>
+-- 2008-11-03
