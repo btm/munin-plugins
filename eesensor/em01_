@@ -1,0 +1,129 @@
+#!/usr/bin/env ruby
+# 2008-03-19 - Bryan McLellan <btm@loftninjas.org>
+
+# this is a wildcard munin plugin script for em01 websensors
+# create a link to this script in the format of em01_addr_task where:
+#   addr is the IP address of the sensor (hostnames NOT supported)
+#   task is one of the tasks listed in the suggest section
+#   i.e. ./em01_192.168.254.102_temp
+
+# works with old EM01b and new EM01b (no es00r required)
+# old EM01b -requires- index.html?em to get data and can return trash in the header section of the regex below where we find the contact closure
+
+# if unfamiliar with writing munin plugins, README.1st:
+# http://munin.projects.linpro.no/wiki/ConcisePlugins
+# http://munin.projects.linpro.no/wiki/HowToWritePlugins
+
+# munin magic markers:
+#%# family=contrib
+#%# capabilities=suggest
+
+require "net/http"
+require "resolv"
+
+class Sensor
+  def get_data(addr)
+    @response = Net::HTTP.get("#{addr}", "/index.html?em")
+    @response.each do |@line|
+      if @line =~ /\s+(.+)T([CF])\D*([0-9.]+)\D*HU\D*([0-9.]+)\D*IL\D*([0-9.]+)/
+        @header = $1
+        @temperatureUnit = $2
+        @temperature = $3
+        @humidity = $4
+        @illumination = $5
+        @contact = $1 if @header =~ /.([NW])\d+/ 
+      end
+    end
+  end
+
+  def temperature
+    return @temperature
+  end
+
+  def temperatureUnit
+    return @temperatureUnit
+  end
+
+  def humidity
+    return @humidity
+  end
+
+  def illumination
+    return @illumination
+  end
+
+  def contact
+    return @contact
+  end
+  def all
+    return @line, temperature, temperatureUnit, humidity, illumination, contact
+  end
+
+end
+
+# otherwise munin has a crazy standard of passing arguments in the filename 'em01_addr_task'
+if $0 =~ /([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*)/
+  addr = $1
+  sensor = Sensor.new
+  sensor.get_data(addr)
+end
+
+case ARGV[0]
+# suggest suffixes for wildcard plugin
+when /suggest/
+  puts "temp", "hum", "ill", "contact"
+  exit(0)
+# this script requires manual link creation
+when /autoconf/
+  puts "no"
+  exit(0)
+# testing mode when passed an IP address
+when /([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*)/
+  addr = $1
+  sensor = Sensor.new
+  sensor.get_data(addr) 
+  puts sensor.all
+  exit(0)
+# munin calls the script with config to get graph information
+when /config/
+  # since the device can't run munin node, we're running on another host
+  # return the hostname via reverse dns, make sure this is the same hostname in the munin config
+  if addr 
+    hostname = Resolv.getname(addr)
+    puts "host_name #{hostname}"
+    puts "graph_category Sensors"
+  end
+
+  # determine task
+  case $0
+  when /temp/
+    puts "graph_title Temperature", "graph_vlabel temp", "temp.label temp"
+  when /hum/
+    puts "graph_title Humidity", "graph_vlabal humidity", "hum.label humidity"
+  when /ill/
+    puts "graph_title Illumination", "graph_vlabal illumination", "ill.label illumination"
+  when /contact/
+    puts "graph_title Contact", "graph_vlabal contact", "contact.label contact"
+  end
+  exit(0)
+end
+
+case $0
+when /temp/
+  exit(1) unless sensor
+  puts "temp.value " + sensor.temperature
+when /hum/
+  exit(1) unless sensor
+  puts "hum.value " + sensor.humidity
+when /ill/
+  exit(1) unless sensor
+  puts "ill.value " + sensor.illumination
+when /contact/
+  exit(1) unless sensor
+  if sensor.contact == 'W'
+    puts "contact.value 1"
+  elsif sensor.contact == 'N'
+    puts "contact.value 0"
+  end
+end
+
